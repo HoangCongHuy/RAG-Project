@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/heartbeat || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rag-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: rag-app
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    env_file:
+      - ./app/.env
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    volumes:
+      - ./app:/app
+    ports:
+      - "8080:8080"
+    command: python main.py
+
+volumes:
+  chroma_data:
