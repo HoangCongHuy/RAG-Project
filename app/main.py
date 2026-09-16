@@ -2,6 +2,7 @@ import os
 import time
 import chromadb
 from chromadb.utils import embedding_functions
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,6 +10,7 @@ load_dotenv()
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
 
 def wait_for_chroma(client, retries: int = 10, delay: int = 3):
@@ -22,6 +24,26 @@ def wait_for_chroma(client, retries: int = 10, delay: int = 3):
             print(f"Đang chờ ChromaDB... ({attempt + 1}/{retries})")
             time.sleep(delay)
     raise RuntimeError("Không kết nối được tới ChromaDB service.")
+
+
+def generate_answer(llm_client, question: str, contexts: list[str]) -> str:
+    """Sinh câu trả lời tự nhiên dựa trên các document lấy được từ Chroma."""
+    context_text = "\n".join(f"- {c}" for c in contexts)
+    system_prompt = (
+        "Bạn là trợ lý trả lời câu hỏi dựa trên NGỮ CẢNH được cung cấp. "
+        "Chỉ dùng thông tin trong ngữ cảnh; nếu ngữ cảnh không đủ để trả lời, "
+        "hãy nói rõ là không tìm thấy thông tin. Trả lời ngắn gọn, tự nhiên bằng tiếng Việt."
+    )
+    user_prompt = f"Ngữ cảnh:\n{context_text}\n\nCâu hỏi: {question}"
+    resp = llm_client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.2,
+    )
+    return resp.choices[0].message.content.strip()
 
 
 def main():
@@ -67,6 +89,12 @@ def main():
     print(f"Câu hỏi: {query}")
     for doc, distance in zip(results["documents"][0], results["distances"][0]):
         print(f"- ({distance:.4f}) {doc}")
+
+    # Bước generation: sinh câu trả lời như người, dựa trên context vừa truy xuất
+    llm_client = OpenAI(api_key=OPENAI_API_KEY)
+    answer = generate_answer(llm_client, query, results["documents"][0])
+    print(f"\n--- Câu trả lời ({LLM_MODEL}) ---")
+    print(answer)
 
 
 if __name__ == "__main__":

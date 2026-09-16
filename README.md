@@ -39,7 +39,7 @@ Lệnh này sẽ:
 4. Kiểm tra ChromaDB đang chạy độc lập:
 
 ```bash
-curl http://localhost:8000/api/v1/heartbeat
+curl http://localhost:8000/api/v2/heartbeat
 ```
 
 ## Dừng và dọn dẹp
